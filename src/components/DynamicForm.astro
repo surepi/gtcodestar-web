@@ -1,0 +1,308 @@
+---
+import type { DynamicFormDefinition, DynamicFormField } from "@/lib/api";
+import { localeFromApiLang, t } from "@/lib/i18n";
+
+type Props = {
+  form: DynamicFormDefinition;
+  lang: "en" | "cn";
+};
+
+const { form, lang } = Astro.props;
+const apiBase = import.meta.env.PUBLIC_BROWSER_API_BASE_URL || "/backend";
+const locale = localeFromApiLang(lang);
+
+function labelFor(field: DynamicFormField) {
+  return field.description || field.name;
+}
+
+function fieldKind(field: DynamicFormField) {
+  const name = field.name.toLowerCase();
+  if (name.includes("content") || name.includes("message") || name.includes("remark") || field.length > 160) return "textarea";
+  if (name.includes("email")) return "email";
+  if (name.includes("mobile") || name.includes("phone") || name.includes("tel")) return "tel";
+  return "text";
+}
+
+function fieldErrorID(field: DynamicFormField) {
+  return `dynamic-${form.code}-${field.name}`.replace(/[^a-zA-Z0-9_-]/g, "-") + "-error";
+}
+---
+
+<form
+  class="dynamic-form"
+  data-dynamic-form
+  data-api-base={apiBase}
+  data-form-code={form.code}
+  data-lang={lang}
+  data-required-message={t(locale, "field.required")}
+  data-too-long-message={t(locale, "field.too.long")}
+  data-sending-message={t(locale, "sending")}
+  data-success-message={t(locale, "submit.success")}
+  data-failed-message={t(locale, "submit.failed")}
+  novalidate
+>
+  {
+    form.fields.map((field) => {
+      const kind = fieldKind(field);
+      const label = labelFor(field);
+      const required = field.required === "1";
+      const errorID = fieldErrorID(field);
+      return (
+        <label>
+          <span>
+            {label}
+            {required && <b aria-hidden="true">*</b>}
+          </span>
+          {
+            kind === "textarea" ? (
+              <textarea
+                name={field.name}
+                rows="6"
+                required={required}
+                maxlength={field.length > 0 ? field.length : undefined}
+                data-label={label}
+                data-error-id={errorID}
+                aria-describedby={errorID}
+                aria-invalid="false"
+              />
+            ) : (
+              <input
+                name={field.name}
+                type={kind}
+                required={required}
+                maxlength={field.length > 0 ? field.length : undefined}
+                inputmode={kind === "tel" ? "tel" : undefined}
+                autocomplete={kind === "email" ? "email" : kind === "tel" ? "tel" : undefined}
+                data-label={label}
+                data-error-id={errorID}
+                aria-describedby={errorID}
+                aria-invalid="false"
+              />
+            )
+          }
+          <small class="field-error" id={errorID} data-field-error aria-live="polite"></small>
+        </label>
+      );
+    })
+  }
+  <label class="hp-field" aria-hidden="true">
+    Website
+    <input name="website" tabindex="-1" autocomplete="off" />
+  </label>
+  <div class="form-foot">
+    <button class="button" type="submit">{t(locale, "send.message")}</button>
+  </div>
+  <p class="form-status" data-dynamic-form-status role="status" aria-live="polite"></p>
+</form>
+
+<script>
+  type Envelope<T> = {
+    code: number;
+    message: string;
+    data?: T;
+  };
+
+  type ValidationError = {
+    field: HTMLInputElement | HTMLTextAreaElement;
+    message: string;
+  };
+
+  function setDynamicStatus(form: HTMLFormElement, message: string, kind: "idle" | "success" | "error" = "idle") {
+    const status = form.querySelector<HTMLElement>("[data-dynamic-form-status]");
+    if (!status) return;
+    status.textContent = message;
+    status.setAttribute("data-kind", kind);
+  }
+
+  function fieldErrorElement(field: HTMLInputElement | HTMLTextAreaElement) {
+    const id = field.dataset.errorId;
+    if (!id) return null;
+    return document.getElementById(id);
+  }
+
+  function clearFieldError(field: HTMLInputElement | HTMLTextAreaElement) {
+    field.setAttribute("aria-invalid", "false");
+    field.closest("label")?.removeAttribute("data-invalid");
+    const error = fieldErrorElement(field);
+    if (error) error.textContent = "";
+  }
+
+  function setFieldError(field: HTMLInputElement | HTMLTextAreaElement, message: string) {
+    field.setAttribute("aria-invalid", "true");
+    field.closest("label")?.setAttribute("data-invalid", "true");
+    const error = fieldErrorElement(field);
+    if (error) error.textContent = message;
+  }
+
+  function clearFormErrors(form: HTMLFormElement) {
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-error-id]").forEach(clearFieldError);
+  }
+
+  function validateDynamicForm(form: HTMLFormElement) {
+    const errors: ValidationError[] = [];
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[name]").forEach((field) => {
+      if (field.name === "website") return;
+      const label = field.dataset.label || field.name;
+      const value = field.value.trim();
+      if (field.required && !value) {
+        errors.push({ field, message: `${label} ${form.dataset.requiredMessage || "is required."}` });
+      } else if (field.maxLength > 0 && value.length > field.maxLength) {
+        errors.push({ field, message: `${label} ${form.dataset.tooLongMessage || "is too long."}` });
+      }
+    });
+    return errors;
+  }
+
+  document.querySelectorAll<HTMLFormElement>("[data-dynamic-form]").forEach((form) => {
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-error-id]").forEach((field) => {
+      field.addEventListener("input", () => clearFieldError(field));
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+      const data = new FormData(form);
+      if (String(data.get("website") || "").trim()) return;
+
+      clearFormErrors(form);
+      const errors = validateDynamicForm(form);
+      if (errors.length > 0) {
+        errors.forEach((error) => setFieldError(error.field, error.message));
+        errors[0].field.focus();
+        setDynamicStatus(form, errors[0].message, "error");
+        return;
+      }
+
+      const payload: Record<string, string> = {};
+      data.forEach((value, key) => {
+        if (key !== "website") payload[key] = String(value).trim();
+      });
+
+      submit?.setAttribute("disabled", "disabled");
+      setDynamicStatus(form, form.dataset.sendingMessage || "Sending...", "idle");
+      try {
+        const lang = form.dataset.lang || "";
+        const endpoint = `${form.dataset.apiBase || "http://localhost:8080"}/api/forms/${encodeURIComponent(form.dataset.formCode || "")}/submit${
+          lang ? `?lang=${encodeURIComponent(lang)}` : ""
+        }`;
+        const response = await fetch(
+          endpoint,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        const result = (await response.json()) as Envelope<{ id: number }>;
+        if (!response.ok || result.code !== 0) throw new Error(result.message || "Submit failed");
+        form.reset();
+        clearFormErrors(form);
+        setDynamicStatus(form, form.dataset.successMessage || "Submitted successfully.", "success");
+      } catch (error) {
+        setDynamicStatus(form, error instanceof Error ? error.message : form.dataset.failedMessage || "Submit failed.", "error");
+      } finally {
+        submit?.removeAttribute("disabled");
+      }
+    });
+  });
+</script>
+
+<style>
+  .dynamic-form {
+    display: grid;
+    gap: 20px;
+    padding: 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  }
+
+  label {
+    display: grid;
+    gap: 8px;
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  label[data-invalid="true"] {
+    color: #b42318;
+  }
+
+  label span {
+    display: flex;
+    gap: 4px;
+  }
+
+  label b {
+    color: #b42318;
+  }
+
+  input,
+  textarea {
+    width: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font: inherit;
+    transition: all 0.3s ease;
+    background: var(--bg-soft, #f5f5f7);
+  }
+
+  input:focus,
+  textarea:focus {
+    border-color: transparent;
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
+    background: #fff;
+  }
+
+  input[aria-invalid="true"],
+  textarea[aria-invalid="true"] {
+    border-color: #d92d20;
+    background: #fff7f6;
+  }
+
+  input[aria-invalid="true"]:focus,
+  textarea[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 4px rgba(217, 45, 32, 0.16);
+  }
+
+  .field-error {
+    min-height: 18px;
+    color: #b42318;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  button[disabled] {
+    cursor: wait;
+    opacity: 0.72;
+  }
+
+  .hp-field {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .form-foot {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .form-status {
+    min-height: 22px;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .form-status[data-kind="success"] {
+    color: #137333;
+  }
+
+  .form-status[data-kind="error"] {
+    color: #b42318;
+  }
+</style>

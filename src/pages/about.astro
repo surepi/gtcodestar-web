@@ -1,0 +1,16 @@
+---
+import AboutPage from "@/components/AboutPage.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { apiGet, DEFAULT_LANG, type Category, type ContentDetail, type SiteData } from "@/lib/api";
+
+const lang = DEFAULT_LANG;
+const [siteData, categories, page] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${lang}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${lang}`),
+  apiGet<ContentDetail>(`/api/pages/1?lang=${lang}`),
+]);
+---
+
+<BaseLayout siteData={siteData} categories={categories} title={page.title} description={page.description}>
+  <AboutPage page={page} lang="en" />
+</BaseLayout>

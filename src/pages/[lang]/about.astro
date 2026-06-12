@@ -1,0 +1,24 @@
+---
+import AboutPage from "@/components/AboutPage.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { apiGetFallback, type Category, type ContentDetail, type SiteData } from "@/lib/api";
+import { PREFIXED_LOCALES, apiLang, isLocale } from "@/lib/i18n";
+
+export function getStaticPaths() {
+  return PREFIXED_LOCALES.map((lang) => ({ params: { lang } }));
+}
+
+const { lang } = Astro.params;
+if (!isLocale(lang)) return Astro.redirect("/");
+const backendLang = apiLang(lang);
+const dataLang = backendLang === "cn" ? "en" : backendLang;
+const [siteData, categories, page] = await Promise.all([
+  apiGetFallback<SiteData>(`/api/site?lang=${backendLang}`, `/api/site?lang=en`),
+  apiGetFallback<Category[]>(`/api/categories/tree?lang=${backendLang}`, `/api/categories/tree?lang=en`, (items) => items.length === 0),
+  apiGetFallback<ContentDetail>(`/api/pages/1?lang=${backendLang}`, `/api/pages/1?lang=${dataLang}`),
+]);
+---
+
+<BaseLayout siteData={siteData} categories={categories} title={page.title} description={page.description}>
+  <AboutPage page={page} lang={lang} />
+</BaseLayout>

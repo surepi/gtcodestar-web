@@ -1,0 +1,128 @@
+---
+import { pageHref } from "@/lib/pagination";
+import { localeFromApiLang, t, type Locale } from "@/lib/i18n";
+
+type Props = {
+  basePath: string;
+  currentPage: number;
+  totalPages: number;
+  label?: string;
+  locale?: Locale | "en" | "zh-hans";
+  apiLang?: "en" | "cn";
+};
+
+const { basePath, currentPage, totalPages, apiLang } = Astro.props;
+const locale = Astro.props.locale || localeFromApiLang(apiLang);
+const label = Astro.props.label || t(locale, "pagination");
+
+function visiblePages(current: number, total: number): Array<number | "ellipsis"> {
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
+  const safeCurrent = Math.min(Math.max(current, 1), total);
+  const pages = new Set([1, total, safeCurrent - 1, safeCurrent, safeCurrent + 1]);
+  if (safeCurrent <= 4) {
+    [2, 3, 4, 5].forEach((page) => pages.add(page));
+  }
+  if (safeCurrent >= total - 3) {
+    [total - 4, total - 3, total - 2, total - 1].forEach((page) => pages.add(page));
+  }
+  const sorted = Array.from(pages)
+    .filter((page) => page >= 1 && page <= total)
+    .sort((a, b) => a - b);
+  return sorted.reduce<Array<number | "ellipsis">>((items, page, index) => {
+    if (index > 0 && page - sorted[index - 1] > 1) items.push("ellipsis");
+    items.push(page);
+    return items;
+  }, []);
+}
+
+const pages = visiblePages(currentPage, totalPages);
+---
+
+{
+  totalPages > 1 && (
+    <nav class="pagination" aria-label={label}>
+      <a class={currentPage <= 1 ? "disabled" : ""} href={pageHref(basePath, currentPage - 1)} aria-disabled={currentPage <= 1 ? "true" : "false"}>
+        {t(locale, "previous")}
+      </a>
+      <div class="page-numbers">
+        {pages.map((page, index) =>
+          page === "ellipsis" ? (
+            <span class="ellipsis" aria-hidden="true" data-index={index}>...</span>
+          ) : (
+            <a class={page === currentPage ? "active" : ""} href={pageHref(basePath, page)} aria-current={page === currentPage ? "page" : undefined}>
+              {page}
+            </a>
+          )
+        )}
+      </div>
+      <a class={currentPage >= totalPages ? "disabled" : ""} href={pageHref(basePath, currentPage + 1)} aria-disabled={currentPage >= totalPages ? "true" : "false"}>
+        {t(locale, "next")}
+      </a>
+    </nav>
+  )
+}
+
+<style>
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 32px;
+  }
+
+  .pagination a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 800;
+    transition: all 0.3s ease;
+  }
+
+  .pagination .ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 40px;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .pagination a.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+  }
+
+  .pagination a.disabled {
+    pointer-events: none;
+    opacity: 0.45;
+  }
+
+  .page-numbers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  @media (max-width: 640px) {
+    .pagination {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .pagination > a {
+      width: 100%;
+    }
+  }
+</style>

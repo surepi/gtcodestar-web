@@ -1,0 +1,104 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import EmptyState from "@/components/EmptyState.astro";
+import Pagination from "@/components/Pagination.astro";
+import ProductCard from "@/components/ProductCard.astro";
+import ProductCategorySidebar from "@/components/ProductCategorySidebar.astro";
+import ProductsHero from "@/components/ProductsHero.astro";
+import {
+  apiGet,
+  apiGetFallback,
+  productCategoryChildren,
+  type Category,
+  type ContentSummary,
+  type PageResult,
+  type SiteData,
+} from "@/lib/api";
+import { PREFIXED_LOCALES, apiLang, isLocale, t } from "@/lib/i18n";
+import { pageCount } from "@/lib/pagination";
+
+export function getStaticPaths() {
+  return PREFIXED_LOCALES.map((lang) => ({ params: { lang } }));
+}
+
+const { lang } = Astro.params;
+if (!isLocale(lang)) return Astro.redirect("/");
+const backendLang = apiLang(lang);
+const prefix = `/${lang}`;
+const pageSize = 24;
+const [siteData, categories, products] = await Promise.all([
+  apiGetFallback<SiteData>(`/api/site?lang=${backendLang}`, `/api/site?lang=en`),
+  apiGetFallback<Category[]>(`/api/categories/tree?lang=${backendLang}`, `/api/categories/tree?lang=en`, (items) => items.length === 0),
+  apiGet<PageResult<ContentSummary>>(`/api/products?lang=${backendLang}&page=1&pageSize=${pageSize}`),
+]);
+const productCategories = productCategoryChildren(categories);
+const totalPages = pageCount(products.total, pageSize);
+---
+
+<BaseLayout siteData={siteData} categories={categories} title={`${t(lang, "products")} | Barcode Scanner Categories`}>
+  <ProductsHero
+    eyebrow={t(lang, "products")}
+    title={t(lang, "barcode.scanners")}
+    description={t(lang, "browse.scanners")}
+    searchLang={backendLang}
+    prefix={prefix}
+    searchTitle={t(lang, "find.scanner")}
+    searchPlaceholder={t(lang, "search.products.placeholder")}
+  />
+  <section class="section">
+    <div class="container product-layout">
+      <ProductCategorySidebar categories={productCategories} title={t(lang, "categories")} allLabel={t(lang, "all.products")} prefix={prefix} />
+      <div>
+        <div class="list-head">
+          <div>
+            <p class="eyebrow">{t(lang, "all.products")}</p>
+            <h2>{products.total} {t(lang, "scanner.models")}</h2>
+          </div>
+          <a class="button secondary" href={`${prefix}/contact/`}>{t(lang, "request.quote")}</a>
+        </div>
+        {
+          products.items.length > 0 ? (
+            <div class="grid three product-grid">
+              {products.items.map((product) => <ProductCard product={product} prefix={prefix} />)}
+            </div>
+          ) : (
+            <EmptyState
+              title={t(lang, "empty.products.title")}
+              description={t(lang, "empty.products.desc")}
+              actionHref={`${prefix}/contact/`}
+              actionLabel={t(lang, "request.quote")}
+            />
+          )
+        }
+        <Pagination basePath={`${prefix}/products/`} currentPage={1} totalPages={totalPages} locale={lang} />
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .product-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 28px;
+  }
+
+  .list-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 920px) {
+    .product-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .list-head {
+      display: grid;
+      align-items: start;
+    }
+  }
+</style>

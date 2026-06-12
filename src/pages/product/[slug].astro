@@ -1,0 +1,61 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ProductDetailPage from "@/components/ProductDetailPage.astro";
+import { apiGetAllContentSummaries, apiGetCached, apiTryGet, contentHref, DEFAULT_LANG, imageURL, type Category, type ContentDetail, type ContentSummary, type MetaData, type PageResult, type SiteData } from "@/lib/api";
+import { cleanSummary, cleanText, splitList } from "@/lib/content";
+import { contentDocHtml } from "@/lib/content-server";
+
+export async function getStaticPaths() {
+  const lang = DEFAULT_LANG;
+  const products = await apiGetAllContentSummaries(`/api/products?lang=${lang}`);
+  const paths = [];
+  for (const item of products.items) {
+    const detail = await apiTryGet<ContentDetail>(`/api/products/${item.id}?lang=${lang}`);
+    if (!detail) continue;
+    paths.push({
+      params: { slug: `${item.filename || item.id}-${item.id}` },
+      props: { id: item.id },
+    });
+  }
+  return paths;
+}
+
+const { id } = Astro.props;
+const lang = DEFAULT_LANG;
+const [siteData, categories, product, meta] = await Promise.all([
+  apiGetCached<SiteData>(`/api/site?lang=${lang}`),
+  apiGetCached<Category[]>(`/api/categories/tree?lang=${lang}`),
+  apiGetCached<ContentDetail>(`/api/products/${id}?lang=${lang}`),
+  apiGetCached<MetaData>(`/api/seo/contents/${id}?lang=${lang}`),
+]);
+const image = imageURL(product.icon);
+const title = cleanText(product.title);
+const gallery = splitList(product.pics).map(imageURL);
+const productContentHtml = contentDocHtml(product.doc);
+const summary = cleanSummary(product.description || product.subtitle, 220);
+const quoteHref = `/contact/?product=${encodeURIComponent(title)}`;
+const relatedPage = await apiGetCached<PageResult<ContentSummary>>(
+  `/api/products?lang=${lang}&page=1&pageSize=8&scode=${encodeURIComponent(product.scode)}`,
+);
+const relatedProducts = relatedPage.items.filter((item) => item.id !== product.id).slice(0, 4);
+const zhProduct = await apiTryGet<ContentDetail>(`/api/products/${id}?lang=cn`);
+const localeLinks = {
+  en: contentHref("product", product),
+  "zh-hans": zhProduct ? `/zh-hans${contentHref("product", zhProduct)}` : "/zh-hans/products/",
+};
+---
+
+<BaseLayout siteData={siteData} categories={categories} meta={meta} localeLinks={localeLinks}>
+  <ProductDetailPage
+    lang="en"
+    prefix=""
+    product={product}
+    title={title}
+    image={image}
+    gallery={gallery}
+    summary={summary}
+    quoteHref={quoteHref}
+    contentHtml={productContentHtml}
+    relatedProducts={relatedProducts}
+  />
+</BaseLayout>

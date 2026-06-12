@@ -1,0 +1,51 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import EmptyState from "@/components/EmptyState.astro";
+import NewsCard from "@/components/NewsCard.astro";
+import Pagination from "@/components/Pagination.astro";
+import { apiGet, DEFAULT_LANG, type Category, type ContentSummary, type PageResult, type SiteData } from "@/lib/api";
+import { numberedPages, pageCount } from "@/lib/pagination";
+
+const pageSize = 9;
+
+export async function getStaticPaths() {
+  const lang = DEFAULT_LANG;
+  const staticPageSize = 9;
+  const news = await apiGet<PageResult<ContentSummary>>(`/api/news?lang=${lang}&page=1&pageSize=1`);
+  return numberedPages(news.total, staticPageSize)
+    .filter((page) => page > 1)
+    .map((page) => ({ params: { page: String(page) } }));
+}
+
+const currentPage = Number(Astro.params.page || "1");
+const lang = DEFAULT_LANG;
+const [siteData, categories, news] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${lang}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${lang}`),
+  apiGet<PageResult<ContentSummary>>(`/api/news?lang=${lang}&page=${currentPage}&pageSize=${pageSize}`),
+]);
+const totalPages = pageCount(news.total, pageSize);
+---
+
+<BaseLayout siteData={siteData} categories={categories} title={`News Page ${currentPage}`}>
+  <section class="section band">
+    <div class="container">
+      <p class="eyebrow">News</p>
+      <h1>Company updates</h1>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      {
+        news.items.length > 0 ? (
+          <div class="grid three">
+            {news.items.map((item) => <NewsCard item={item} />)}
+          </div>
+        ) : (
+          <EmptyState title="No news found" description="No published updates are available here yet." />
+        )
+      }
+      <Pagination basePath="/news/" currentPage={currentPage} totalPages={totalPages} />
+    </div>
+  </section>
+</BaseLayout>

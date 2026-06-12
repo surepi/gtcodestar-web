@@ -1,0 +1,53 @@
+---
+import NewsCard from "@/components/NewsCard.astro";
+import type { ContentSummary } from "@/lib/api";
+
+type Props = {
+  title: string;
+  backHref: string;
+  backLabel: string;
+  items: ContentSummary[];
+  prefix?: string;
+};
+
+const { title, backHref, backLabel, items, prefix = "" } = Astro.props;
+---
+
+<section class="section related-news">
+  <div class="container">
+    <div class="related-head">
+      <h2>{title}</h2>
+      <a class="button secondary" href={backHref}>{backLabel}</a>
+    </div>
+    {items.length > 0 && (
+      <div class="grid three">
+        {items.map((item) => <NewsCard item={item} prefix={prefix} />)}
+      </div>
+    )}
+  </div>
+</section>
+
+<style>
+  .related-news {
+    padding-top: 0;
+  }
+
+  .related-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .related-head h2 {
+    margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    .related-head {
+      display: grid;
+      align-items: start;
+    }
+  }
+</style>

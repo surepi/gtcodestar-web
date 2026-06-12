@@ -1,0 +1,44 @@
+---
+type Props = {
+  title: string;
+  description?: string;
+  actionHref?: string;
+  actionLabel?: string;
+};
+
+const { title, description, actionHref, actionLabel } = Astro.props;
+---
+
+<div class="empty-state">
+  <h2>{title}</h2>
+  {description && <p>{description}</p>}
+  {actionHref && actionLabel && <a class="button secondary" href={actionHref}>{actionLabel}</a>}
+</div>
+
+<style>
+  .empty-state {
+    display: grid;
+    gap: 12px;
+    justify-items: start;
+    padding: 40px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--band);
+  }
+
+  .empty-state h2,
+  .empty-state p {
+    margin: 0;
+  }
+
+  .empty-state p {
+    max-width: 620px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 640px) {
+    .empty-state {
+      padding: 28px;
+    }
+  }
+</style>

@@ -1,0 +1,110 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import EmptyState from "@/components/EmptyState.astro";
+import ProductCard from "@/components/ProductCard.astro";
+import ProductCategorySidebar from "@/components/ProductCategorySidebar.astro";
+import ProductsHero from "@/components/ProductsHero.astro";
+import {
+  apiGet,
+  apiGetAllContentSummaries,
+  DEFAULT_LANG,
+  productCategoryChildren,
+  type Category,
+  type SiteData,
+} from "@/lib/api";
+
+export async function getStaticPaths() {
+  const lang = DEFAULT_LANG;
+  const categories = await apiGet<Category[]>(`/api/categories/tree?lang=${lang}`);
+  return productCategoryChildren(categories).map((category) => ({
+    params: { code: category.code },
+    props: { category },
+  }));
+}
+
+const { category } = Astro.props;
+const lang = DEFAULT_LANG;
+const [siteData, categories, products] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${lang}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${lang}`),
+  apiGetAllContentSummaries(`/api/products?lang=${lang}&scode=${category.code}`),
+]);
+const productCategories = productCategoryChildren(categories);
+---
+
+<BaseLayout
+  siteData={siteData}
+  categories={categories}
+  title={`${category.name} | Gtcodestar Barcode Scanners`}
+  description={`Browse ${category.name} products from Gtcodestar.`}
+>
+  <ProductsHero
+    eyebrow="Product category"
+    title={category.name}
+    description={`${products.total} models available for OEM, ODM and project sourcing.`}
+    searchLang="en"
+    scode={category.code}
+    searchTitle={`Search ${category.name}`}
+    searchPlaceholder="Search within this category"
+  />
+
+  <section class="section">
+    <div class="container product-layout">
+      <ProductCategorySidebar categories={productCategories} title="Categories" allLabel="All products" activeCode={category.code} />
+      <div>
+        <div class="list-head">
+          <div>
+            <p class="eyebrow">Models</p>
+            <h2>{products.total} products</h2>
+          </div>
+          <a class="button secondary" href="/contact/">Request quote</a>
+        </div>
+        {
+          products.items.length > 0 ? (
+            <div class="grid three product-grid">
+              {products.items.map((product) => <ProductCard product={product} />)}
+            </div>
+          ) : (
+            <EmptyState
+              title="No products found"
+              description="No published scanner models are available here yet."
+              actionHref="/contact/"
+              actionLabel="Request quote"
+            />
+          )
+        }
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .product-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 28px;
+  }
+
+  .list-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .product-grid {
+    align-items: stretch;
+  }
+
+  @media (max-width: 920px) {
+    .product-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .list-head {
+      display: grid;
+      align-items: start;
+    }
+  }
+</style>

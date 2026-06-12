@@ -1,0 +1,96 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import RelatedNews from "@/components/RelatedNews.astro";
+import { apiGet, apiGetAllContentSummaries, apiTryGet, contentHref, DEFAULT_LANG, imageURL, type Category, type ContentDetail, type ContentSummary, type MetaData, type PageResult, type SiteData } from "@/lib/api";
+import { cleanAltText, cleanText, formatDate } from "@/lib/content";
+import { contentDocHtml } from "@/lib/content-server";
+import { localeFromApiLang, t } from "@/lib/i18n";
+import { Image } from "astro:assets";
+
+export async function getStaticPaths() {
+  const lang = DEFAULT_LANG;
+  const news = await apiGetAllContentSummaries(`/api/news?lang=${lang}`);
+  return news.items.map((item) => ({
+    params: { slug: `${item.filename || item.id}-${item.id}` },
+    props: { id: item.id },
+  }));
+}
+
+const { id } = Astro.props;
+const lang = DEFAULT_LANG;
+const locale = localeFromApiLang(lang);
+const [siteData, categories, article, meta, latestNews] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${lang}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${lang}`),
+  apiGet<ContentDetail>(`/api/news/${id}?lang=${lang}`),
+  apiGet<MetaData>(`/api/seo/contents/${id}?lang=${lang}`),
+  apiGet<PageResult<ContentSummary>>(`/api/news?lang=${lang}&page=1&pageSize=4`),
+]);
+const image = imageURL(article.icon);
+const title = cleanText(article.title);
+const articleContentHtml = contentDocHtml(article.doc);
+const relatedNews = latestNews.items.filter((item) => item.id !== article.id).slice(0, 3);
+const zhArticle = await apiTryGet<ContentDetail>(`/api/news/${id}?lang=cn`);
+const localeLinks = {
+  en: contentHref("news", article),
+  "zh-hans": zhArticle ? `/zh-hans${contentHref("news", zhArticle)}` : "/zh-hans/news/",
+};
+---
+
+<BaseLayout siteData={siteData} categories={categories} meta={meta} localeLinks={localeLinks}>
+  <section class="section band">
+    <div class="container article-head">
+      <p class="eyebrow">News</p>
+      <h1>{title}</h1>
+      <time>{formatDate(article.date)}</time>
+    </div>
+  </section>
+  {image && (
+    <section class="article-image">
+      <Image src={image} alt={cleanAltText(title)} width={1180} height={664} />
+    </section>
+  )}
+  <section class="section">
+    <article class="container content" set:html={articleContentHtml} />
+  </section>
+  <RelatedNews title={t(locale, "related.news")} backHref="/news/" backLabel={t(locale, "back.news")} items={relatedNews} />
+</BaseLayout>
+
+<style>
+  .article-head {
+    display: grid;
+    gap: 16px;
+  }
+
+  time {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .article-image {
+    max-width: 1180px;
+    margin: 48px auto 0;
+    padding: 0 48px;
+  }
+
+  .article-image img {
+    width: 100%;
+    max-height: 520px;
+    object-fit: cover;
+    border-radius: 8px;
+  }
+
+  .content {
+    max-width: 900px;
+  }
+
+  .content :global(img) {
+    height: auto;
+  }
+
+  @media (max-width: 820px) {
+    .article-image {
+      padding: 0 20px;
+    }
+  }
+</style>

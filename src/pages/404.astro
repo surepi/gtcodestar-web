@@ -1,0 +1,107 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { apiGet, DEFAULT_LANG, type Category, type SiteData } from "@/lib/api";
+
+const [siteData, categories] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${DEFAULT_LANG}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${DEFAULT_LANG}`),
+]);
+---
+
+<BaseLayout siteData={siteData} categories={categories} title="Page not found | Gtcodestar" description="The requested page could not be found.">
+  <section class="section not-found">
+    <div class="container not-found-inner" data-locale="en">
+      <p class="eyebrow fade-up" style="animation-delay: 0.1s">404</p>
+      <h1 class="fade-up" style="animation-delay: 0.2s" data-copy="title">Page not found</h1>
+      <p class="fade-up" style="animation-delay: 0.3s" data-copy="description">The page may have moved, or the address may be incorrect.</p>
+      <div class="actions fade-up" style="animation-delay: 0.4s">
+        <a class="button" href="/" data-link="home">Back to home</a>
+        <a class="button secondary" href="/products/" data-link="products">View products</a>
+      </div>
+    </div>
+  </section>
+  <script>
+    const copy = {
+      en: {
+        title: "Page not found",
+        description: "The page may have moved, or the address may be incorrect.",
+        home: "Back to home",
+        products: "View products",
+        homeHref: "/",
+        productsHref: "/products/",
+        documentTitle: "Page not found | Gtcodestar",
+      },
+      zh: {
+        title: "页面不存在",
+        description: "页面可能已经移动，或访问地址不正确。",
+        home: "返回首页",
+        products: "查看产品",
+        homeHref: "/zh-hans/",
+        productsHref: "/zh-hans/products/",
+        documentTitle: "页面不存在 | Gtcodestar",
+      },
+    };
+
+    const locale = window.location.pathname.startsWith("/zh-hans/") ? "zh" : "en";
+    const active = copy[locale];
+    document.title = active.documentTitle;
+    document.querySelector("[data-locale]")?.setAttribute("data-locale", locale);
+    const title = document.querySelector('[data-copy="title"]');
+    const description = document.querySelector('[data-copy="description"]');
+    const home = document.querySelector('[data-link="home"]');
+    const products = document.querySelector('[data-link="products"]');
+    if (title) title.textContent = active.title;
+    if (description) description.textContent = active.description;
+    if (home instanceof HTMLAnchorElement) {
+      home.textContent = active.home;
+      home.href = active.homeHref;
+    }
+    if (products instanceof HTMLAnchorElement) {
+      products.textContent = active.products;
+      products.href = active.productsHref;
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: grid;
+    align-items: center;
+    text-align: center;
+    min-height: 62vh;
+  }
+
+  .not-found-inner {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .fade-up {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes fadeUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fade-up {
+      opacity: 1;
+      transform: none;
+      animation: none;
+    }
+  }
+</style>

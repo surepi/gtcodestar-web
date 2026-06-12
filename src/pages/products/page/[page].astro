@@ -1,0 +1,115 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import EmptyState from "@/components/EmptyState.astro";
+import Pagination from "@/components/Pagination.astro";
+import ProductCard from "@/components/ProductCard.astro";
+import ProductCategorySidebar from "@/components/ProductCategorySidebar.astro";
+import ProductsHero from "@/components/ProductsHero.astro";
+import {
+  apiGet,
+  DEFAULT_LANG,
+  productCategoryChildren,
+  type Category,
+  type ContentSummary,
+  type PageResult,
+  type SiteData,
+} from "@/lib/api";
+import { numberedPages, pageCount } from "@/lib/pagination";
+
+const pageSize = 24;
+
+export async function getStaticPaths() {
+  const lang = DEFAULT_LANG;
+  const staticPageSize = 24;
+  const products = await apiGet<PageResult<ContentSummary>>(`/api/products?lang=${lang}&page=1&pageSize=1`);
+  return numberedPages(products.total, staticPageSize)
+    .filter((page) => page > 1)
+    .map((page) => ({ params: { page: String(page) } }));
+}
+
+const currentPage = Number(Astro.params.page || "1");
+const lang = DEFAULT_LANG;
+const [siteData, categories, products] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${lang}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${lang}`),
+  apiGet<PageResult<ContentSummary>>(`/api/products?lang=${lang}&page=${currentPage}&pageSize=${pageSize}`),
+]);
+const productCategories = productCategoryChildren(categories);
+const totalPages = pageCount(products.total, pageSize);
+---
+
+<BaseLayout
+  siteData={siteData}
+  categories={categories}
+  title={`Products Page ${currentPage} | Barcode Scanner Categories`}
+  description="Browse Gtcodestar barcode scanners by category, including 1D, 2D, desktop, industrial and embedded scanner products."
+>
+  <ProductsHero
+    eyebrow="Products"
+    title="Barcode scanners"
+    description="Browse wired, wireless, Bluetooth, industrial and embedded scanning products."
+    searchLang="en"
+    searchTitle="Find a scanner"
+    searchPlaceholder="Search by model, keyword or feature"
+  />
+  <section class="section">
+    <div class="container product-layout">
+      <ProductCategorySidebar categories={productCategories} title="Categories" allLabel="All products" />
+      <div>
+        <div class="list-head">
+          <div>
+            <p class="eyebrow">All products</p>
+            <h2>{products.total} scanner models</h2>
+          </div>
+          <a class="button secondary" href="/contact/">Request quote</a>
+        </div>
+        {
+          products.items.length > 0 ? (
+            <div class="grid three product-grid">
+              {products.items.map((product) => <ProductCard product={product} />)}
+            </div>
+          ) : (
+            <EmptyState
+              title="No products found"
+              description="No published scanner models are available here yet."
+              actionHref="/contact/"
+              actionLabel="Request quote"
+            />
+          )
+        }
+        <Pagination basePath="/products/" currentPage={currentPage} totalPages={totalPages} />
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .product-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 28px;
+  }
+
+  .list-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .product-grid {
+    align-items: stretch;
+  }
+
+  @media (max-width: 920px) {
+    .product-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .list-head {
+      display: grid;
+      align-items: start;
+    }
+  }
+</style>

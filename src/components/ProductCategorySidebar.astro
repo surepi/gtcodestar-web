@@ -1,0 +1,105 @@
+---
+import { categoryHref, type Category } from "@/lib/api";
+
+type Props = {
+  categories: Category[];
+  title: string;
+  allLabel: string;
+  prefix?: string;
+  activeCode?: string;
+};
+
+const { categories, title, allLabel, prefix = "", activeCode = "" } = Astro.props;
+---
+
+<aside class="category-sidebar" aria-label={title}>
+  <strong>{title}</strong>
+  <nav class="category-nav" aria-label={title}>
+    <a class={!activeCode ? "active" : ""} href={`${prefix}/products/`} aria-current={!activeCode ? "page" : undefined}>
+      {allLabel}
+    </a>
+    {
+      categories.map((item) => {
+        const isActive = item.code === activeCode;
+        return (
+          <a class={isActive ? "active" : ""} href={`${prefix}${categoryHref(item)}`} aria-current={isActive ? "page" : undefined}>
+            {item.name}
+          </a>
+        );
+      })
+    }
+  </nav>
+</aside>
+
+<style>
+  .category-sidebar {
+    position: sticky;
+    top: 96px;
+    align-self: start;
+    display: grid;
+    gap: 16px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .category-sidebar strong {
+    font-size: 0.95rem;
+    line-height: 1.25;
+  }
+
+  .category-nav {
+    display: grid;
+    gap: 8px;
+  }
+
+  .category-nav a {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--muted);
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.28;
+  }
+
+  .category-nav a:hover {
+    background: var(--band);
+    color: var(--text);
+  }
+
+  .category-nav a.active {
+    border-color: var(--primary);
+    background: #eef5ff;
+    color: var(--primary);
+    box-shadow: inset 0 0 0 1px rgba(32, 113, 201, 0.08);
+  }
+
+  @media (max-width: 920px) {
+    .category-sidebar {
+      position: static;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .category-nav {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+
+    .category-nav a {
+      flex: 0 0 auto;
+      min-height: 38px;
+      max-width: 220px;
+      white-space: nowrap;
+    }
+  }
+</style>

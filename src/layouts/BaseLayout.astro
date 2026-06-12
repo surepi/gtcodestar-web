@@ -1,0 +1,133 @@
+---
+import { ClientRouter } from "astro:transitions";
+import "@/styles/public.css";
+import { productCategoryChildren, type MetaData, type SiteData, type Category } from "@/lib/api";
+import { cleanAltText, contentHtml } from "@/lib/content";
+import { isLocale, LOCALES, localePath, t, unprefixedPath, type Locale } from "@/lib/i18n";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+
+type Props = {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  siteData: SiteData;
+  categories?: Category[];
+  meta?: MetaData;
+  localeLinks?: Partial<Record<Locale, string>>;
+};
+
+const { siteData, categories = [], meta, localeLinks = {} } = Astro.props;
+const title = Astro.props.title || meta?.title || siteData.site.title;
+const description = Astro.props.description || meta?.description || siteData.site.description;
+const productCategories = productCategoryChildren(categories);
+const currentPath = unprefixedPath(Astro.url.pathname);
+const pathLocale = Astro.url.pathname.match(/^\/(en|zh-hans)(\/|$)/)?.[1];
+const currentLocale = isLocale(pathLocale) ? pathLocale : siteData.lang === "cn" ? "zh-hans" : "en";
+const navPrefix = currentLocale === "zh-hans" ? "/zh-hans" : "";
+const homeHref = `${navPrefix}/`;
+const alternateBase = (import.meta.env.PUBLIC_SITE_URL || "https://www.gtcodestar.com").replace(/\/$/, "");
+const canonical = Astro.props.canonical || (currentLocale === "zh-hans" ? `${alternateBase}${Astro.url.pathname}` : meta?.canonical);
+const htmlLang = currentLocale === "zh-hans" ? "zh-Hans" : "en";
+const footerCopyrightHtml = contentHtml(siteData.config.copyright);
+const statisticalCodeHtml = siteData.config.statistical?.trim() || "";
+const languageHref = (locale: Locale) => localeLinks[locale] || localePath(locale, currentPath);
+const localLogoSrc = "/assets/logo-720.webp";
+const logoSrc = siteData.site.logo ? localLogoSrc : "";
+const logoAlt = cleanAltText(siteData.site.title);
+const regionLabels: Record<Locale, string> = {
+  en: "Global",
+  "zh-hans": "中国",
+};
+const navItems = [
+  {
+    href: `${navPrefix}/`,
+    label: t(currentLocale, "home"),
+    active: currentPath === "/" || currentPath === "",
+    icon: ['<path d="M3 10.5 12 3l9 7.5"/>', '<path d="M5 10v10h5v-6h4v6h5V10"/>'],
+  },
+  {
+    href: `${navPrefix}/products/`,
+    label: t(currentLocale, "products"),
+    active: currentPath.startsWith("/products"),
+    icon: ['<path d="m21 8-9-5-9 5 9 5 9-5Z"/>', '<path d="M3 8v8l9 5 9-5V8"/>', '<path d="M12 13v8"/>'],
+  },
+  {
+    href: `${navPrefix}/news/`,
+    label: t(currentLocale, "news"),
+    active: currentPath.startsWith("/news"),
+    icon: ['<path d="M4 5h14a2 2 0 0 1 2 2v12H6a2 2 0 0 1-2-2V5Z"/>', '<path d="M8 9h8"/>', '<path d="M8 13h8"/>', '<path d="M8 17h5"/>'],
+  },
+  {
+    href: `${navPrefix}/about/`,
+    label: t(currentLocale, "about"),
+    active: currentPath.startsWith("/about"),
+    icon: ['<path d="M4 21V7l8-4 8 4v14"/>', '<path d="M9 21v-7h6v7"/>', '<path d="M9 9h.01"/>', '<path d="M15 9h.01"/>'],
+  },
+  {
+    href: `${navPrefix}/contact/`,
+    label: t(currentLocale, "contact"),
+    active: currentPath.startsWith("/contact"),
+    icon: ['<path d="M4 5h16v14H4z"/>', '<path d="m4 7 8 6 8-6"/>'],
+  },
+];
+---
+
+<!doctype html>
+<html lang={htmlLang}>
+  <head>
+    <ClientRouter />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {siteData.site.keywords && <meta name="keywords" content={siteData.site.keywords} />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    <link rel="preconnect" href="https://r2.gtcodestar.com.cn" crossorigin />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical || alternateBase + currentPath} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteData.site.title} />
+    {siteData.site.logo && <meta property="og:image" content={siteData.site.logo} />}
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {siteData.site.logo && <meta name="twitter:image" content={siteData.site.logo} />}
+    {
+      LOCALES.map((locale) => (
+        <link rel="alternate" hreflang={locale === "zh-hans" ? "zh-Hans" : "en"} href={`${alternateBase}${languageHref(locale)}`} />
+      ))
+    }
+    <link rel="alternate" hreflang="x-default" href={`${alternateBase}${currentPath}`} />
+  </head>
+  <body>
+    <Header
+      homeHref={homeHref}
+      logoSrc={logoSrc}
+      logoAlt={logoAlt}
+      navItems={navItems}
+      regionLabels={regionLabels}
+      currentLocale={currentLocale as Locale}
+      languageHref={languageHref}
+      companyName={siteData.company.name}
+    />
+    <main>
+      <slot />
+    </main>
+    <Footer
+      siteData={siteData}
+      logoSrc={logoSrc}
+      logoAlt={logoAlt}
+      productCategories={productCategories}
+      currentLocale={currentLocale as Locale}
+      navPrefix={navPrefix}
+      footerCopyrightHtml={footerCopyrightHtml}
+    />
+    {statisticalCodeHtml && <Fragment set:html={statisticalCodeHtml} />}
+  </body>
+</html>

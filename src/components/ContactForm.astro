@@ -1,0 +1,308 @@
+---
+import { localeFromApiLang, t } from "@/lib/i18n";
+
+type Props = {
+  lang: "en" | "cn";
+};
+
+const { lang } = Astro.props;
+const apiBase = import.meta.env.PUBLIC_BROWSER_API_BASE_URL || "/backend";
+const locale = localeFromApiLang(lang);
+---
+
+<form
+  class="contact-form"
+  data-contact-form
+  data-api-base={apiBase}
+  data-lang={lang}
+  data-required-message={t(locale, "field.required")}
+  data-too-long-message={t(locale, "field.too.long")}
+  data-sending-message={t(locale, "sending")}
+  data-success-message={t(locale, "submit.success")}
+  data-failed-message={t(locale, "submit.failed")}
+  data-quote-for-label={t(locale, "quote.for")}
+  novalidate
+>
+  <label>
+    {t(locale, "name")}
+    <input
+      name="contacts"
+      required
+      maxlength="10"
+      autocomplete="name"
+      data-label={t(locale, "name")}
+      data-error-id="contact-contacts-error"
+      aria-describedby="contact-contacts-error"
+      aria-invalid="false"
+    />
+    <span class="field-error" id="contact-contacts-error" data-field-error aria-live="polite"></span>
+  </label>
+  <label>
+    {t(locale, "email.or.phone")}
+    <input
+      name="mobile"
+      required
+      maxlength="100"
+      autocomplete="email"
+      data-label={t(locale, "email.or.phone")}
+      data-error-id="contact-mobile-error"
+      aria-describedby="contact-mobile-error"
+      aria-invalid="false"
+    />
+    <span class="field-error" id="contact-mobile-error" data-field-error aria-live="polite"></span>
+  </label>
+  <label>
+    {t(locale, "message")}
+    <textarea
+      name="content"
+      required
+      rows="6"
+      maxlength="500"
+      data-label={t(locale, "message")}
+      data-error-id="contact-content-error"
+      aria-describedby="contact-content-error"
+      aria-invalid="false"
+    ></textarea>
+    <span class="field-error" id="contact-content-error" data-field-error aria-live="polite"></span>
+  </label>
+  <label class="hp-field" aria-hidden="true">
+    {t(locale, "website")}
+    <input name="website" tabindex="-1" autocomplete="off" />
+  </label>
+  <div class="form-foot">
+    <button class="button" type="submit">{t(locale, "send.message")}</button>
+    <span class="char-count" data-char-count>0/500</span>
+  </div>
+  <p class="form-status" data-form-status role="status" aria-live="polite"></p>
+</form>
+
+<script>
+  type Envelope<T> = {
+    code: number;
+    message: string;
+    data?: T;
+  };
+
+  const form = document.querySelector("[data-contact-form]");
+  const status = document.querySelector("[data-form-status]");
+  const counter = document.querySelector("[data-char-count]");
+  const messageField = form?.querySelector<HTMLTextAreaElement>('textarea[name="content"]');
+
+  type ValidationError = {
+    field: HTMLInputElement | HTMLTextAreaElement;
+    message: string;
+  };
+
+  function setStatus(message: string, kind: "idle" | "success" | "error" = "idle") {
+    if (!status) return;
+    status.textContent = message;
+    status.setAttribute("data-kind", kind);
+  }
+
+  function fieldErrorElement(field: HTMLInputElement | HTMLTextAreaElement) {
+    const id = field.dataset.errorId;
+    if (!id) return null;
+    return document.getElementById(id);
+  }
+
+  function clearFieldError(field: HTMLInputElement | HTMLTextAreaElement) {
+    field.setAttribute("aria-invalid", "false");
+    field.closest("label")?.removeAttribute("data-invalid");
+    const error = fieldErrorElement(field);
+    if (error) error.textContent = "";
+  }
+
+  function setFieldError(field: HTMLInputElement | HTMLTextAreaElement, message: string) {
+    field.setAttribute("aria-invalid", "true");
+    field.closest("label")?.setAttribute("data-invalid", "true");
+    const error = fieldErrorElement(field);
+    if (error) error.textContent = message;
+  }
+
+  function clearFormErrors(formElement: HTMLFormElement) {
+    formElement.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-error-id]").forEach(clearFieldError);
+  }
+
+  function validateRequired(formElement: HTMLFormElement) {
+    const errors: ValidationError[] = [];
+    formElement.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[required]").forEach((field) => {
+      const label = field.dataset.label || field.name;
+      const value = field.value.trim();
+      if (!value) {
+        errors.push({ field, message: `${label} ${formElement.dataset.requiredMessage || "is required."}` });
+      } else if (field.maxLength > 0 && value.length > field.maxLength) {
+        errors.push({ field, message: `${label} ${formElement.dataset.tooLongMessage || "is too long."}` });
+      }
+    });
+    return errors;
+  }
+
+  form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-error-id]").forEach((field) => {
+    field.addEventListener("input", () => clearFieldError(field));
+  });
+
+  messageField?.addEventListener("input", (event) => {
+    if (!(event.currentTarget instanceof HTMLTextAreaElement) || !counter) return;
+    counter.textContent = `${event.currentTarget.value.length}/500`;
+  });
+
+  if (form instanceof HTMLFormElement && messageField) {
+    const product = new URLSearchParams(window.location.search).get("product")?.trim();
+    if (product && !messageField.value.trim()) {
+      const prefix = form.dataset.quoteForLabel || "Quote for";
+      messageField.value = `${prefix}: ${product}\n`;
+      if (counter) counter.textContent = `${messageField.value.length}/500`;
+    }
+  }
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!(form instanceof HTMLFormElement)) return;
+
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const data = new FormData(form);
+    if (String(data.get("website") || "").trim()) return;
+
+    clearFormErrors(form);
+    const errors = validateRequired(form);
+    if (errors.length > 0) {
+      errors.forEach((error) => setFieldError(error.field, error.message));
+      errors[0].field.focus();
+      setStatus(errors[0].message, "error");
+      return;
+    }
+
+    const payload = {
+      lang: form.dataset.lang || "en",
+      contacts: String(data.get("contacts") || "").trim(),
+      mobile: String(data.get("mobile") || "").trim(),
+      content: String(data.get("content") || "").trim(),
+    };
+
+    submit?.setAttribute("disabled", "disabled");
+    setStatus(form.dataset.sendingMessage || "Sending...", "idle");
+    try {
+      const response = await fetch(`${form.dataset.apiBase || "http://localhost:8080"}/api/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json()) as Envelope<{ id: number }>;
+      if (!response.ok || result.code !== 0) throw new Error(result.message || "Submit failed");
+      form.reset();
+      clearFormErrors(form);
+      if (counter) counter.textContent = "0/500";
+      setStatus(form.dataset.successMessage || "Message sent. We will contact you soon.", "success");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : form.dataset.failedMessage || "Submit failed.", "error");
+    } finally {
+      submit?.removeAttribute("disabled");
+    }
+  });
+</script>
+
+<style>
+  .contact-form {
+    display: grid;
+    gap: 20px;
+    padding: 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  }
+
+  label {
+    display: grid;
+    gap: 8px;
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  label[data-invalid="true"] {
+    color: #b42318;
+  }
+
+  input,
+  textarea {
+    width: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font: inherit;
+    transition: all 0.3s ease;
+    background: var(--bg-soft, #f5f5f7);
+  }
+
+  input:focus,
+  textarea:focus {
+    border-color: transparent;
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
+    background: #fff;
+  }
+
+  input[aria-invalid="true"],
+  textarea[aria-invalid="true"] {
+    border-color: #d92d20;
+    background: #fff7f6;
+  }
+
+  input[aria-invalid="true"]:focus,
+  textarea[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 4px rgba(217, 45, 32, 0.16);
+  }
+
+  .field-error {
+    min-height: 18px;
+    color: #b42318;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  button[disabled] {
+    cursor: wait;
+    opacity: 0.72;
+  }
+
+  .hp-field {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .form-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .char-count {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .form-status {
+    min-height: 22px;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .form-status[data-kind="success"] {
+    color: #137333;
+  }
+
+  .form-status[data-kind="error"] {
+    color: #b42318;
+  }
+
+  @media (max-width: 640px) {
+    .form-foot {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+</style>

@@ -1,0 +1,20 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import HomePage from "@/components/HomePage.astro";
+import { loadHomePageData } from "@/lib/home";
+import { PREFIXED_LOCALES, apiLang, isLocale } from "@/lib/i18n";
+
+export function getStaticPaths() {
+  return PREFIXED_LOCALES.map((lang) => ({ params: { lang } }));
+}
+
+const { lang } = Astro.params;
+if (!isLocale(lang)) return Astro.redirect("/");
+const backendLang = apiLang(lang);
+const prefix = `/${lang}`;
+const { siteData, categories, products, news, meta } = await loadHomePageData(backendLang);
+---
+
+<BaseLayout siteData={siteData} categories={categories} meta={meta}>
+  <HomePage siteData={siteData} categories={categories} products={products} news={news} lang={lang} prefix={prefix} />
+</BaseLayout>

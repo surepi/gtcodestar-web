@@ -1,0 +1,68 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ProductDetailPage from "@/components/ProductDetailPage.astro";
+import { apiGet, apiGetAllContentSummaries, apiGetCached, apiGetFallback, apiGetSoftFallback, apiTryGet, contentHref, imageURL, type Category, type ContentDetail, type ContentSummary, type MetaData, type PageResult, type SiteData } from "@/lib/api";
+import { cleanSummary, cleanText, splitList } from "@/lib/content";
+import { contentDocHtml } from "@/lib/content-server";
+import { PREFIXED_LOCALES, apiLang, isLocale } from "@/lib/i18n";
+
+export async function getStaticPaths() {
+  const paths = [];
+  for (const lang of PREFIXED_LOCALES) {
+    const backendLang = apiLang(lang);
+    const products = await apiGetAllContentSummaries(`/api/products?lang=${backendLang}`);
+    for (const item of products.items) {
+      const detail = await apiTryGet<ContentDetail>(`/api/products/${item.id}?lang=${backendLang}`);
+      if (!detail) continue;
+      paths.push({
+        params: { lang, slug: `${item.filename || item.id}-${item.id}` },
+        props: { id: item.id },
+      });
+    }
+  }
+  return paths;
+}
+
+const { lang } = Astro.params;
+if (!isLocale(lang)) return Astro.redirect("/");
+const { id } = Astro.props;
+const backendLang = apiLang(lang);
+const prefix = `/${lang}`;
+const [siteData, categories, product, meta] = await Promise.all([
+  apiGetFallback<SiteData>(`/api/site?lang=${backendLang}`, `/api/site?lang=en`),
+  apiGetFallback<Category[]>(`/api/categories/tree?lang=${backendLang}`, `/api/categories/tree?lang=en`, (items) => items.length === 0),
+  apiGetCached<ContentDetail>(`/api/products/${id}?lang=${backendLang}`),
+  apiGetSoftFallback<MetaData>(`/api/seo/contents/${id}?lang=${backendLang}`, `/api/seo/contents/${id}?lang=en`),
+]);
+const image = imageURL(product.icon);
+const title = cleanText(product.title);
+const gallery = splitList(product.pics).map(imageURL);
+const productContentHtml = contentDocHtml(product.doc);
+const summary = cleanSummary(product.description || product.subtitle, 220);
+const quoteHref = `${prefix}/contact/?product=${encodeURIComponent(title)}`;
+const relatedPage = await apiGet<PageResult<ContentSummary>>(`/api/products?lang=${backendLang}&page=1&pageSize=8&scode=${encodeURIComponent(product.scode)}`);
+const relatedProducts = relatedPage.items.filter((item) => item.id !== product.id).slice(0, 4);
+const [enProduct, zhProduct] = await Promise.all([
+  backendLang === "en" ? product : apiTryGet<ContentDetail>(`/api/products/${id}?lang=en`),
+  backendLang === "cn" ? product : apiTryGet<ContentDetail>(`/api/products/${id}?lang=cn`),
+]);
+const localeLinks = {
+  en: enProduct ? contentHref("product", enProduct) : "/products/",
+  "zh-hans": zhProduct ? `/zh-hans${contentHref("product", zhProduct)}` : "/zh-hans/products/",
+};
+---
+
+<BaseLayout siteData={siteData} categories={categories} meta={meta} localeLinks={localeLinks}>
+  <ProductDetailPage
+    lang={lang}
+    prefix={prefix}
+    product={product}
+    title={title}
+    image={image}
+    gallery={gallery}
+    summary={summary}
+    quoteHref={quoteHref}
+    contentHtml={productContentHtml}
+    relatedProducts={relatedProducts}
+  />
+</BaseLayout>

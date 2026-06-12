@@ -1,0 +1,12 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import HomePage from "@/components/HomePage.astro";
+import { DEFAULT_LANG } from "@/lib/api";
+import { loadHomePageData } from "@/lib/home";
+
+const { siteData, categories, products, news, meta } = await loadHomePageData(DEFAULT_LANG);
+---
+
+<BaseLayout siteData={siteData} categories={categories} meta={meta}>
+  <HomePage siteData={siteData} categories={categories} products={products} news={news} lang={DEFAULT_LANG} prefix="" />
+</BaseLayout>

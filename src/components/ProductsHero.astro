@@ -1,0 +1,40 @@
+---
+import SearchPanel from "@/components/SearchPanel.astro";
+
+type Props = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  searchLang: "en" | "cn";
+  searchTitle: string;
+  searchPlaceholder: string;
+  prefix?: string;
+  scode?: string;
+};
+
+const { eyebrow, title, description, searchLang, searchTitle, searchPlaceholder, prefix = "", scode = "" } = Astro.props;
+---
+
+<section class="section band">
+  <div class="container products-hero">
+    <p class="eyebrow">{eyebrow}</p>
+    <h1>{title}</h1>
+    <p>{description}</p>
+    <SearchPanel
+      kind="products"
+      lang={searchLang}
+      prefix={prefix}
+      scode={scode}
+      title={searchTitle}
+      placeholder={searchPlaceholder}
+    />
+  </div>
+</section>
+
+<style>
+  .products-hero {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+  }
+</style>

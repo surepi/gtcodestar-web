@@ -1,0 +1,416 @@
+---
+import { localeFromApiLang, t } from "@/lib/i18n";
+
+type Props = {
+  kind: "products" | "news";
+  lang: "en" | "cn";
+  prefix?: string;
+  scode?: string;
+  title: string;
+  placeholder: string;
+};
+
+const { kind, lang, prefix = "", scode = "", title, placeholder } = Astro.props;
+const apiBase = import.meta.env.PUBLIC_BROWSER_API_BASE_URL || "/backend";
+const locale = localeFromApiLang(lang);
+---
+
+<section
+  class="search-panel"
+  data-search-panel
+  data-api-base={apiBase}
+  data-kind={kind}
+  data-lang={lang}
+  data-prefix={prefix}
+  data-scode={scode}
+  data-searching-message={t(locale, "searching")}
+  data-loading-more-message={t(locale, "loading.more")}
+  data-failed-message={t(locale, "submit.failed")}
+  data-load-more-label={t(locale, "load.more")}
+  data-result-label={locale === "zh-hans" ? "个结果" : "result"}
+  data-results-label={locale === "zh-hans" ? "个结果" : "results"}
+  data-found-label={locale === "zh-hans" ? "已找到" : "found"}
+>
+  <div class="search-head">
+    <div>
+      <p class="eyebrow">{t(locale, "search")}</p>
+      <h2>{title}</h2>
+    </div>
+    <form class="search-form" data-search-form>
+      <input name="q" type="search" placeholder={placeholder} maxlength="80" />
+      <button class="button" type="submit">{t(locale, "search")}</button>
+    </form>
+  </div>
+  <p class="search-status" data-search-status role="status" aria-live="polite" aria-atomic="true"></p>
+  <div class="search-results" data-search-results aria-live="polite" aria-busy="false"></div>
+  <button class="button secondary load-more" type="button" data-load-more hidden>{t(locale, "load.more")}</button>
+</section>
+
+<script>
+  type ContentSummary = {
+    id: number;
+    title: string;
+    filename: string;
+    icon: string;
+    description: string;
+    subtitle: string;
+    date: string;
+    ext?: Record<string, string>;
+  };
+
+  type Envelope<T> = {
+    code: number;
+    message: string;
+    data?: T;
+  };
+
+  type PageResult<T> = {
+    items: T[];
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+
+  const panel = document.querySelector<HTMLElement>("[data-search-panel]");
+  const form = panel?.querySelector<HTMLFormElement>("[data-search-form]");
+  const status = panel?.querySelector<HTMLElement>("[data-search-status]");
+  const results = panel?.querySelector<HTMLElement>("[data-search-results]");
+  const loadMore = panel?.querySelector<HTMLButtonElement>("[data-load-more]");
+  let currentPage = 1;
+  let currentQuery = "";
+
+  function setLoadMoreLoading(button: HTMLButtonElement, loading: boolean) {
+    button.disabled = loading;
+    button.classList.toggle("is-loading", loading);
+    button.textContent = loading
+      ? button.closest<HTMLElement>("[data-search-panel]")?.dataset.loadingMoreMessage || "Loading..."
+      : button.closest<HTMLElement>("[data-search-panel]")?.dataset.loadMoreLabel || "Load more";
+  }
+
+  function imageURL(apiBase: string, value: string) {
+    if (!value) return "";
+    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    return `${apiBase}${value.startsWith("/") ? value : `/${value}`}`;
+  }
+
+  function escapeHTML(value: string) {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function cleanText(value: string) {
+    let decoded = value;
+    for (let index = 0; index < 3; index += 1) {
+      const next = decoded
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#039;/g, "'")
+        .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
+        .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 10)))
+        .replace(/&amp;/gi, "&");
+      if (next === decoded) break;
+      decoded = next;
+    }
+    return decoded
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/[●*]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function firstUsableSummary(values: Array<string | undefined>) {
+    for (const value of values) {
+      const text = cleanText(value || "");
+      if (text.length >= 6 && !/^\d+$/.test(text)) return text;
+    }
+    return "";
+  }
+
+  function slug(item: ContentSummary) {
+    return `${encodeURIComponent(item.filename || String(item.id))}-${item.id}`;
+  }
+
+  function renderItem(item: ContentSummary, kind: string, prefix: string, apiBase: string) {
+    const image = escapeHTML(imageURL(apiBase, item.icon));
+    const href = escapeHTML(kind === "products" ? `${prefix}/product/${slug(item)}/` : `${prefix}/news/${slug(item)}/`);
+    const title = escapeHTML(cleanText(item.title));
+    const rawDescription =
+      kind === "products"
+        ? item.description || item.subtitle || ""
+        : firstUsableSummary([item.description, item.subtitle]);
+    const description = escapeHTML(cleanText(rawDescription).slice(0, 160));
+    return `<article class="search-card">
+      <a href="${href}">
+        ${image ? `<img src="${image}" alt="${title}" width="320" height="240" loading="lazy" decoding="async">` : ""}
+        <div>
+          <h3>${title}</h3>
+          ${description ? `<p>${description}</p>` : ""}
+        </div>
+      </a>
+    </article>`;
+  }
+
+  async function runSearch(page = 1) {
+    if (!panel || !status || !results || !loadMore) return;
+    const apiBase = panel.dataset.apiBase || "http://localhost:8080";
+    const kind = panel.dataset.kind || "products";
+    const lang = panel.dataset.lang || "en";
+    const prefix = panel.dataset.prefix || "";
+    const scode = panel.dataset.scode || "";
+
+    const params = new URLSearchParams({
+      lang,
+      page: String(page),
+      pageSize: "12",
+      q: currentQuery,
+    });
+    if (scode) params.set("scode", scode);
+
+    const isLoadingMore = page > 1;
+    status.textContent = currentQuery
+      ? isLoadingMore
+        ? panel.dataset.loadingMoreMessage || "Loading..."
+        : panel.dataset.searchingMessage || "Searching..."
+      : "";
+    results.setAttribute("aria-busy", "true");
+    setLoadMoreLoading(loadMore, isLoadingMore);
+    if (!isLoadingMore) loadMore.disabled = true;
+    try {
+      const response = await fetch(`${apiBase}/api/${kind}?${params.toString()}`);
+      const payload = (await response.json()) as Envelope<PageResult<ContentSummary>>;
+      if (!response.ok || payload.code !== 0 || !payload.data) {
+        throw new Error(payload.message || panel.dataset.failedMessage || "Search failed");
+      }
+      const html = payload.data.items.map((item) => renderItem(item, kind, prefix, apiBase)).join("");
+      if (page === 1) results.innerHTML = html;
+      else results.insertAdjacentHTML("beforeend", html);
+
+      const loaded = payload.data.page * payload.data.pageSize;
+      const resultLabel = payload.data.total === 1 ? panel.dataset.resultLabel || "result" : panel.dataset.resultsLabel || "results";
+      const foundLabel = panel.dataset.foundLabel || "found";
+      status.textContent = currentQuery ? `${payload.data.total} ${resultLabel} ${foundLabel}.` : "";
+      loadMore.hidden = loaded >= payload.data.total || payload.data.items.length === 0;
+      currentPage = payload.data.page;
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : panel.dataset.failedMessage || "Search failed.";
+      if (page === 1) results.innerHTML = "";
+      loadMore.hidden = true;
+    } finally {
+      results.setAttribute("aria-busy", "false");
+      setLoadMoreLoading(loadMore, false);
+    }
+  }
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    currentQuery = String(data.get("q") || "").trim();
+    if (!currentQuery) {
+      if (status) status.textContent = "";
+      if (results) results.innerHTML = "";
+      results?.setAttribute("aria-busy", "false");
+      if (loadMore) loadMore.hidden = true;
+      return;
+    }
+    void runSearch(1);
+  });
+
+  loadMore?.addEventListener("click", () => {
+    if (!currentQuery) return;
+    void runSearch(currentPage + 1);
+  });
+</script>
+
+<style is:global>
+  .search-panel {
+    margin-bottom: 34px;
+    padding: 32px;
+    border: none;
+    border-radius: 16px;
+    background: var(--band);
+  }
+
+  .section.band > .container > .search-panel {
+    margin-top: 28px;
+    margin-bottom: 0;
+    max-width: 760px;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .section.band > .container > .search-panel .search-head {
+    display: block;
+  }
+
+  .section.band > .container > .search-panel .search-head > div {
+    display: none;
+  }
+
+  .section.band > .container > .search-panel .search-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+  }
+
+  .section.band > .container > .search-panel input {
+    min-height: 44px;
+    border: none;
+    background: transparent;
+  }
+
+  .section.band > .container > .search-panel input:focus {
+    box-shadow: none;
+  }
+
+  .section.band > .container > .search-panel .button {
+    min-height: 44px;
+  }
+
+  .section.band > .container > .search-panel .search-status {
+    margin-left: 8px;
+  }
+
+  .search-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+    gap: 20px;
+    align-items: end;
+  }
+
+  .search-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  input {
+    min-height: 44px;
+    width: 100%;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 12px;
+    padding: 0 16px;
+    font: inherit;
+    transition: all 0.3s ease;
+  }
+
+  input:focus {
+    border-color: transparent;
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
+  }
+
+  .search-status {
+    min-height: 24px;
+    margin: 14px 0 0;
+    font-weight: 700;
+  }
+
+  .search-results {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  .search-card {
+    border: none;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .search-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  }
+
+  .search-card a {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    height: 100%;
+  }
+
+  .search-card img {
+    width: 100%;
+    height: 100%;
+    min-height: 112px;
+    object-fit: contain;
+    padding: 14px;
+    background: transparent;
+  }
+
+  .search-card div {
+    padding: 14px;
+  }
+
+  .search-card h3 {
+    font-size: 16px;
+  }
+
+  .search-card p {
+    margin: 8px 0 0;
+    font-size: 14px;
+  }
+
+  .load-more {
+    align-items: center;
+    margin-top: 16px;
+  }
+
+  .load-more.is-loading::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+    animation: search-spin 0.8s linear infinite;
+  }
+
+  @keyframes search-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .load-more.is-loading::before {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .search-head,
+    .search-results {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .search-form,
+    .search-card a {
+      grid-template-columns: 1fr;
+    }
+
+    .section.band > .container > .search-panel .search-form {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

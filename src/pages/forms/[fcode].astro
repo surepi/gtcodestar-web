@@ -1,0 +1,48 @@
+---
+import DynamicForm from "@/components/DynamicForm.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { apiGet, DEFAULT_LANG, type Category, type DynamicFormDefinition, type SiteData } from "@/lib/api";
+import { localeFromApiLang, t } from "@/lib/i18n";
+
+export async function getStaticPaths() {
+  const configuredCodes = (import.meta.env.PUBLIC_FORM_CODES || "1")
+    .split(",")
+    .map((code: string) => code.trim())
+    .filter(Boolean);
+  const paths = [];
+  for (const code of configuredCodes) {
+    const form = await apiGet<DynamicFormDefinition>(`/api/forms/${encodeURIComponent(code)}`);
+    paths.push({ params: { fcode: code }, props: { form } });
+  }
+  return paths;
+}
+
+const { form } = Astro.props;
+const lang = DEFAULT_LANG;
+const locale = localeFromApiLang(lang);
+const [siteData, categories] = await Promise.all([
+  apiGet<SiteData>(`/api/site?lang=${lang}`),
+  apiGet<Category[]>(`/api/categories/tree?lang=${lang}`),
+]);
+---
+
+<BaseLayout siteData={siteData} categories={categories} title={form.name}>
+  <section class="section band">
+    <div class="container">
+      <p class="eyebrow">{t(locale, "form.label")}</p>
+      <h1>{form.name}</h1>
+      <p>{t(locale, "form.desc")}</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container form-page">
+      <DynamicForm form={form} lang="en" />
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .form-page {
+    max-width: 760px;
+  }
+</style>
