@@ -4,7 +4,7 @@ import { isLocale, t as translate, type LabelKey, type Locale } from "@/lib/i18n
 const STORAGE_KEY = "admin-locale";
 const CONTENT_LANG_STORAGE_KEY = "admin-content-lang";
 
-export type AdminContentLang = "en" | "cn";
+export type AdminContentLang = "en" | "zh-hans";
 
 function detectLocale(): Locale {
   try {
@@ -35,7 +35,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [contentLang, setContentLangState] = useState<AdminContentLang>(() => {
     try {
       const stored = localStorage.getItem(CONTENT_LANG_STORAGE_KEY);
-      if (stored === "en" || stored === "cn") return stored;
+      if (stored === "en" || stored === "zh-hans") return stored;
     } catch {
       // localStorage unavailable
     }

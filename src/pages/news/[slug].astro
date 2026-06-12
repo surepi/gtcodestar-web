@@ -30,7 +30,7 @@ const image = imageURL(article.icon);
 const title = cleanText(article.title);
 const articleContentHtml = contentDocHtml(article.doc);
 const relatedNews = latestNews.items.filter((item) => item.id !== article.id).slice(0, 3);
-const zhArticle = await apiTryGet<ContentDetail>(`/api/news/${id}?lang=cn`);
+const zhArticle = await apiTryGet<ContentDetail>(`/api/news/${id}?lang=zh-hans`);
 const localeLinks = {
   en: contentHref("news", article),
   "zh-hans": zhArticle ? `/zh-hans${contentHref("news", zhArticle)}` : "/zh-hans/news/",

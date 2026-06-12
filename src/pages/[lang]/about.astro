@@ -11,7 +11,7 @@ export function getStaticPaths() {
 const { lang } = Astro.params;
 if (!isLocale(lang)) return Astro.redirect("/");
 const backendLang = apiLang(lang);
-const dataLang = backendLang === "cn" ? "en" : backendLang;
+const dataLang = backendLang === "zh-hans" ? "en" : backendLang;
 const [siteData, categories, page] = await Promise.all([
   apiGetFallback<SiteData>(`/api/site?lang=${backendLang}`, `/api/site?lang=en`),
   apiGetFallback<Category[]>(`/api/categories/tree?lang=${backendLang}`, `/api/categories/tree?lang=en`, (items) => items.length === 0),

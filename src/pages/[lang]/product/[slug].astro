@@ -44,7 +44,7 @@ const relatedPage = await apiGet<PageResult<ContentSummary>>(`/api/products?lang
 const relatedProducts = relatedPage.items.filter((item) => item.id !== product.id).slice(0, 4);
 const [enProduct, zhProduct] = await Promise.all([
   backendLang === "en" ? product : apiTryGet<ContentDetail>(`/api/products/${id}?lang=en`),
-  backendLang === "cn" ? product : apiTryGet<ContentDetail>(`/api/products/${id}?lang=cn`),
+  backendLang === "zh-hans" ? product : apiTryGet<ContentDetail>(`/api/products/${id}?lang=zh-hans`),
 ]);
 const localeLinks = {
   en: enProduct ? contentHref("product", enProduct) : "/products/",

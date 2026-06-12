@@ -38,7 +38,7 @@ const relatedPage = await apiGetCached<PageResult<ContentSummary>>(
   `/api/products?lang=${lang}&page=1&pageSize=8&scode=${encodeURIComponent(product.scode)}`,
 );
 const relatedProducts = relatedPage.items.filter((item) => item.id !== product.id).slice(0, 4);
-const zhProduct = await apiTryGet<ContentDetail>(`/api/products/${id}?lang=cn`);
+const zhProduct = await apiTryGet<ContentDetail>(`/api/products/${id}?lang=zh-hans`);
 const localeLinks = {
   en: contentHref("product", product),
   "zh-hans": zhProduct ? `/zh-hans${contentHref("product", zhProduct)}` : "/zh-hans/products/",

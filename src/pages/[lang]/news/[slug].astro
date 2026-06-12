@@ -42,7 +42,7 @@ const articleContentHtml = contentDocHtml(article.doc);
 const relatedNews = latestNews.items.filter((item) => item.id !== article.id).slice(0, 3);
 const [enArticle, zhArticle] = await Promise.all([
   backendLang === "en" ? article : apiTryGet<ContentDetail>(`/api/news/${id}?lang=en`),
-  backendLang === "cn" ? article : apiTryGet<ContentDetail>(`/api/news/${id}?lang=cn`),
+  backendLang === "zh-hans" ? article : apiTryGet<ContentDetail>(`/api/news/${id}?lang=zh-hans`),
 ]);
 const localeLinks = {
   en: enArticle ? contentHref("news", enArticle) : "/news/",

@@ -1138,12 +1138,12 @@ export function isLocale(value: string | undefined): value is Locale {
   return LOCALES.includes(value as Locale);
 }
 
-export function apiLang(locale: Locale): "en" | "cn" {
-  return locale === "zh-hans" ? "cn" : "en";
+export function apiLang(locale: Locale): "en" | "zh-hans" {
+  return locale === "zh-hans" ? "zh-hans" : "en";
 }
 
 export function localeFromApiLang(lang: string | undefined): Locale {
-  return lang === "cn" ? "zh-hans" : "en";
+  return lang === "zh-hans" ? "zh-hans" : "en";
 }
 
 export function t(locale: Locale | undefined, key: LabelKey, vars?: Record<string, string | number>): string {

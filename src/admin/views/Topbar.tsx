@@ -53,13 +53,13 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         </div>
       </div>
       <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
-        <Select value={contentLang} onValueChange={(value) => setContentLang(value === "cn" ? "cn" : "en")}>
+        <Select value={contentLang} onValueChange={(value) => setContentLang(value === "zh-hans" ? "cn" : "en")}>
           <SelectTrigger className="h-9 w-[116px] sm:w-[124px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="en">English</SelectItem>
-            <SelectItem value="cn">中文内容</SelectItem>
+            <SelectItem value="zh-hans">中文内容</SelectItem>
           </SelectContent>
         </Select>
         <Button type="button" variant="ghost" size="sm" onClick={toggleLocale}>
